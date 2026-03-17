@@ -1,0 +1,272 @@
+input, .MuiInputBase-input, .MuiOutlinedInput-input {
+  color: #fff !important;
+  background: #181818 !important;
+  caret-color: #FFD700 !important;
+  border-radius: 12px !important;
+  border: 1.5px solid #232323 !important;
+  font-size: 1rem !important;
+  font-family: 'Inter', 'Montserrat', 'Roboto', 'Open Sans', Arial, sans-serif;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em;
+  padding: 12px 16px !important;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+input:focus, .MuiInputBase-input:focus, .MuiOutlinedInput-input:focus {
+  border: 1.5px solid #FFD700 !important;
+  box-shadow: 0 0 0 2px #FFD70033 !important;
+  outline: none !important;
+}
+input::placeholder, .MuiInputBase-input::placeholder, .MuiOutlinedInput-input::placeholder {
+  color: #bbb !important;
+  opacity: 1 !important;
+  font-weight: 400 !important;
+}
+
+.MuiPaper-root, .card {
+  background: #181818 !important;
+  color: #fff !important;
+  border: 1.5px solid #232323 !important;
+  border-radius: 24px !important;
+  box-shadow: 0 8px 40px #FFD70022, 0 2px 8px #000 !important;
+  padding: 2rem 1.5rem !important;
+  transition: box-shadow 0.2s, border 0.2s;
+}
+
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background: #000 !important;
+  color: #fff !important;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  box-shadow: 0 4px 18px 0 rgba(0,0,0,0.6);
+}
+
+.App-link {
+  color: #fff !important;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+html, body, #root {
+  min-height: 100vh;
+  height: 100%;
+}
+
+body {
+  background: #000 !important;
+  color: #fff !important;
+  font-family: 'Roboto', 'Inter', Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  transition: background 0.3s, color 0.3s;
+}
+
+.App-header, .hero, .MuiAppBar-root {
+  background: #000 !important;
+  color: #fff !important;
+}
+
+button, .MuiButton-root {
+  background: linear-gradient(90deg, #FFD700 0%, #FFC300 100%) !important;
+  color: #181818 !important;
+  border-radius: 32px !important;
+  font-family: 'Inter', 'Montserrat', 'Roboto', 'Open Sans', Arial, sans-serif;
+  font-weight: 700 !important;
+  font-size: 1.05rem !important;
+  letter-spacing: 0.04em;
+  box-shadow: 0 2px 8px 0 #FFD70022 !important;
+  padding: 12px 32px !important;
+  text-transform: uppercase !important;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.1s;
+}
+button:hover, .MuiButton-root:hover {
+  background: linear-gradient(90deg, #FFC300 0%, #FFD700 100%) !important;
+  color: #000 !important;
+  box-shadow: 0 4px 18px 0 #FFD70055 !important;
+  transform: translateY(-2px) scale(1.03);
+}
+
+.nav-link, .AppBar a, .MuiButton-root, button {
+  color: #fff !important;
+  background: transparent !important;
+  border: none;
+  box-shadow: none !important;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.nav-link:hover, .AppBar a:hover {
+  color: #C0C0C0 !important;
+  border-bottom: 2px solid #C0C0C0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Montserrat', 'Inter', 'Roboto', 'Open Sans', Arial, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #FFD700;
+  margin-bottom: 0.5em;
+  margin-top: 0;
+}
+
+label, li, p, span, .MuiTypography-root {
+  color: #e0e0e0;
+  font-family: 'Inter', 'Montserrat', 'Roboto', 'Open Sans', Arial, sans-serif;
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+img.premium-img {
+  filter: grayscale(1) contrast(1.2) brightness(0.9);
+  mix-blend-mode: lighten;
+  box-shadow: none;
+}
+
+hr, .divider {
+  border: none;
+  border-bottom: 1px solid #222;
+  margin: 2rem 0;
+}
+
+.footer {
+  background: #000 !important;
+  color: #fff !important;
+  border-top: 1px solid #222 !important;
+  padding: 2rem 1rem 1rem 1rem !important;
+  text-align: center;
+  font-size: 1.1rem;
+  font-family: 'Montserrat', 'UnifrakturCook', Arial, sans-serif;
+}
+
+html, body, #root {
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  background: #232323;
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #FFD70055;
+  border-radius: 4px;
+}
+
+a {
+  color: #FFD700;
+  text-decoration: none;
+  border-bottom: 1px solid #FFD70000;
+  transition: color 0.2s, border-bottom 0.2s;
+}
+a:hover {
+  color: #FFC300;
+  border-bottom: 1px solid #FFD700;
+}
+body.dark a {
+  color: #fff;
+}
+body.dark a:hover {
+  color: #C0C0C0;
+  border-bottom: 1px solid #C0C0C0;
+}
+
+img.premium-img {
+  filter: grayscale(1) contrast(1.2);
+  mix-blend-mode: lighten;
+  box-shadow: 0 4px 24px 0 rgba(0,0,0,0.18);
+}
+
+.hero {
+  background: #111 !important;
+  padding: 6rem 2rem 4rem 2rem;
+  text-align: center;
+}
+body.dark .hero {
+  background: #000 !important;
+}
+
+.hero-title {
+  font-size: 3rem;
+  font-family: 'Montserrat', 'Work Sans', Arial, sans-serif;
+  font-weight: 700;
+  color: #fff !important;
+}
+body.dark .hero-title {
+  color: #fff;
+}
+
+.hero-btn {
+  margin-top: 2rem;
+  font-size: 1.25rem;
+  padding: 1rem 3rem;
+}
+
+.fade-in {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s cubic-bezier(.4,0,.2,1), transform 0.6s cubic-bezier(.4,0,.2,1);
+}
+.fade-in.visible {
+  opacity: 1;
+  transform: none;
+}
+
+.footer {
+  background: #111 !important;
+  color: #fff !important;
+  padding: 4rem 2rem 2rem 2rem;
+  text-align: center;
+  font-size: 1.1rem;
+  border-top: 1px solid #E0E0E0;
+}
+body.dark .footer {
+  background: #111 !important;
+  color: #fff;
+  border-top: 1px solid #232323;
+}
+
+.nav-link {
+  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 1px;
+  color: #fff !important;
+  margin: 0 1.5rem;
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.2s, color 0.2s;
+}
+.nav-link:hover {
+  color: #C0C0C0;
+  border-bottom: 2px solid #C0C0C0;
+}
+body.dark .nav-link {
+  color: #fff;
+}
+body.dark .nav-link:hover {
+  color: #C0C0C0;
+  border-bottom: 2px solid #C0C0C0;
+}
+

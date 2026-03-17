@@ -1,0 +1,17 @@
+body, html, #root {
+  margin: 0;
+  background: #000 !important;
+  color: #fff !important;
+  font-family: 'Inter', 'Montserrat', 'Roboto', 'Open Sans', Arial, sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 16px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}

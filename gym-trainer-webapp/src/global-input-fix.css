@@ -1,0 +1,14 @@
+/* Force all MUI input text to white and background to black */
+.MuiInputBase-input, .MuiOutlinedInput-input, .MuiFilledInput-input, input {
+  color: #fff !important;
+  background-color: #000 !important;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  letter-spacing: 1px;
+}
+
+input:-webkit-autofill {
+  -webkit-text-fill-color: #fff !important;
+  box-shadow: 0 0 0 1000px #000 inset !important;
+  background-color: #000 !important;
+}
