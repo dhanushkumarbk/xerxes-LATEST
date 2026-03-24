@@ -1,80 +1,89 @@
-import React, { useState } from 'react';
-import { Box, Container, Typography, TextField, MenuItem, Button, Alert, CircularProgress } from '@mui/material';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { API_BASE } from '../api';
+import React, { useState, useEffect } from 'react';
+import {
+  Box, Container, Paper, Typography, TextField, MenuItem,
+  Button, Alert, CircularProgress
+} from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import {
+  createOrder, requestDietPlan, storeUserProgram,
+  getToken, getUser, getPdfDownloadUrl
+} from '../api';
 
-const cuisineOptions = [
-  { value: 'North Indian', label: 'North Indian' },
-  { value: 'South Indian', label: 'South Indian' },
-  { value: 'Both', label: 'Both' },
-];
-const goalOptions = [
-  { value: 'Fat Loss', label: 'Fat Loss' },
-  { value: 'Weight Gain', label: 'Weight Gain' },
-  { value: 'Lean Muscle Gain', label: 'Lean Muscle Gain' }
-];
-const foodAllergyOptions = [
-  'Milk', 'Eggs', 'Peanuts', 'Soy', 'Wheat', 'Tree Nuts', 'Fish', 'Shellfish', 'Sesame',
-  'Gluten', 'Mustard', 'Lupin', 'Celery', 'Buckwheat', 'Corn', 'Tomato', 'Potato', 'Garlic',
-  'Onion', 'Mushroom', 'Chili', 'Coriander', 'Cumin', 'Fenugreek', 'Lentils', 'Chana Dal',
-  'Urad Dal', 'Moong Dal', 'Toor Dal', 'Rice', 'Oats', 'Barley', 'Cashew', 'Almond', 'Pistachio',
-  'Walnut', 'Hazelnut', 'Pecan', 'Brazil Nut', 'Pine Nut', 'Coconut'
+const FIELD_SX = {
+  mb: 2.5,
+  '& .MuiOutlinedInput-root': {
+    borderRadius: 2,
+    '& fieldset': { borderColor: '#333' },
+    '&:hover fieldset': { borderColor: '#FFD700' },
+    '&.Mui-focused fieldset': { borderColor: '#FFD700' },
+  },
+  '& .MuiInputLabel-root': { color: '#888' },
+  '& .MuiInputLabel-root.Mui-focused': { color: '#FFD700' },
+  '& .MuiInputBase-input': { color: '#fff', backgroundColor: '#1A1A1A' },
+  '& .MuiFormHelperText-root': { color: '#555', fontSize: 11 },
+  '& .MuiSelect-icon': { color: '#888' },
+};
+
+function SectionLabel({ children }) {
+  return (
+    <Typography sx={{
+      fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+      letterSpacing: 1.5, color: '#FFD700', mb: 2, mt: 3,
+      borderBottom: '1px solid #1A1A1A', pb: 1,
+    }}>
+      {children}
+    </Typography>
+  );
+}
+
+const FOOD_ALLERGY_OPTIONS = [
+  'Milk', 'Eggs', 'Peanuts', 'Soy', 'Wheat', 'Tree Nuts', 'Fish', 'Shellfish',
+  'Sesame', 'Gluten', 'Mustard', 'Lupin', 'Celery', 'Buckwheat', 'Corn', 'Tomato',
+  'Potato', 'Garlic', 'Onion', 'Mushroom', 'Chili', 'Coriander', 'Cumin', 'Fenugreek',
+  'Lentils', 'Cashew', 'Almond', 'Pistachio', 'Walnut', 'Coconut',
 ];
 
+const PLAN_PRICE = 1999;
 
 export default function PersonalizeDiet() {
   const navigate = useNavigate();
-  const reactLocation = useLocation();
   const [form, setForm] = useState({
-    full_name: '',
-    age: '',
-    height_cm: '',
-    weight_kg: '',
-    gender: '',
-    activity_level: '',
-    workout_frequency: '',
-    workout_duration_minutes: '',
-    food_allergies: [],
-    dietary_preferences: '',
-    medical_conditions: '',
-    meal_frequency: '',
-    water_intake: '',
-    supplement_use: '',
-    sleep_duration: '',
-    goal: '',
-    specific_goals: '',
-    cuisine_preference: '', // <-- added
+    full_name: '', age: '', height_cm: '', weight_kg: '', gender: '',
+    activity_level: '', workout_frequency: '', workout_duration_minutes: '',
+    food_allergies: [], dietary_preferences: '', medical_conditions: '',
+    meal_frequency: '', water_intake: '', supplement_use: '', sleep_duration: '',
+    goal: '', specific_goals: '', cuisine_preference: '',
   });
   const [loading, setLoading] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [generatedPlanId, setGeneratedPlanId] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [pdfUrl, setPdfUrl] = useState(null);
-  
-  const [debugBackendError, setDebugBackendError] = useState(null);
-  // const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!getToken()) {
+      navigate('/login', { state: { message: 'Please log in to access this page.' } });
+    }
+  }, [navigate]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
+    setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleAllergyChange = (event) => {
-    setForm({ ...form, food_allergies: event.target.value });
+  const handleAllergyChange = (e) => {
+    setForm({ ...form, food_allergies: e.target.value });
   };
 
-  const validateForm = () => {
-    if (!form.full_name.trim()) return 'Full Name is required.';
-    if (!form.age || isNaN(form.age) || form.age < 10 || form.age > 100) return 'Valid Age is required (10-100).';
-    if (!form.height_cm || isNaN(form.height_cm) || form.height_cm < 100 || form.height_cm > 250) return 'Valid Height (cm) is required (100-250).';
-    if (!form.weight_kg || isNaN(form.weight_kg) || form.weight_kg < 20 || form.weight_kg > 250) return 'Valid Weight (kg) is required (20-250).';
+  const validate = () => {
+    if (!form.full_name.trim()) return 'Full name is required.';
+    if (!form.age || form.age < 10 || form.age > 100) return 'Age must be between 10 and 100.';
+    if (!form.height_cm || form.height_cm < 100 || form.height_cm > 250) return 'Height must be 100–250 cm.';
+    if (!form.weight_kg || form.weight_kg < 20 || form.weight_kg > 300) return 'Weight must be 20–300 kg.';
     if (!form.gender) return 'Gender is required.';
-    if (!form.activity_level) return 'Activity Level is required.';
-    if (!form.workout_frequency || isNaN(form.workout_frequency) || form.workout_frequency < 0) return 'Workout Frequency is required.';
-    if (!form.workout_duration_minutes || isNaN(form.workout_duration_minutes) || form.workout_duration_minutes < 0) return 'Workout Duration is required.';
+    if (!form.activity_level) return 'Activity level is required.';
+    if (!form.workout_frequency) return 'Workout frequency is required.';
+    if (!form.workout_duration_minutes) return 'Workout duration is required.';
     if (!form.goal) return 'Goal is required.';
-    if (!form.cuisine_preference) return 'Cuisine Preference is required.';
+    if (!form.cuisine_preference) return 'Cuisine preference is required.';
     return null;
   };
 
@@ -83,257 +92,241 @@ export default function PersonalizeDiet() {
     setError(null);
     setSuccess(null);
     setPdfUrl(null);
-    const validationError = validateForm();
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
+
+    const validationError = validate();
+    if (validationError) { setError(validationError); return; }
+
+    const user = getUser();
+    if (!user) { navigate('/login', { state: { message: 'Please log in.' } }); return; }
+    const userId = user.id || user._id || user.email;
+    if (!userId) { navigate('/login', { state: { message: 'Session expired. Please log in again.' } }); return; }
+
     setLoading(true);
     try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      if (!user) throw new Error('You must be logged in.');
-      // Try multiple possible keys for user ID
-      const userId = user.id || user._id || user.email || null;
-      if (!userId) {
-        setDebugBackendError('User session expired. Please log in again.');
-        setTimeout(() => {
-          navigate('/login', { state: { premiumError: 'User session expired. Please log in again.' } });
-        }, 2000);
-        throw new Error('User session expired. Redirecting to login...');
-      }
-      const payload = { ...form, food_allergies: form.food_allergies.join(','), user_id: userId };
-
-      // 1. Create order on backend
-      // Get price from navigation state or default to 299
-      const planPrice = (reactLocation && reactLocation.state && reactLocation.state.price) ? reactLocation.state.price : 299;
-      const orderRes = await fetch(`${API_BASE}/create-order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: planPrice, currency: 'INR', user_id: userId, purpose: 'Personalized Diet Plan' })
+      const orderData = await createOrder({
+        amount: PLAN_PRICE, currency: 'INR', user_id: userId, purpose: 'Personalized Diet Plan'
       });
-      const orderData = await orderRes.json();
       if (!orderData.id) throw new Error('Failed to create payment order.');
-      // 2. Open Razorpay checkout
+
+      const payload = {
+        ...form,
+        food_allergies: form.food_allergies.join(','),
+        user_id: userId,
+      };
+
       const options = {
-        key: process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_live_IPnzfZsdZcGEsa', // Replace with your actual Razorpay test key
+        key: process.env.REACT_APP_RAZORPAY_KEY_ID,
         amount: orderData.amount,
         currency: orderData.currency,
-        name: 'Xerxes Gym Trainer',
+        name: 'Xerxes Fitness',
         description: 'Personalized Diet Plan',
         order_id: orderData.id,
-        handler: async function (response) {
-          // 3. On payment success, call backend to verify payment and generate programs
+        handler: async (response) => {
           try {
-            console.log('[PAYMENT SUCCESS] Razorpay response:', response);
-            console.log('[PAYMENT SUCCESS] Calling verify-payment with:', {
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              user_id: userId,
-              program_id: 1,
-              amount: planPrice
+            const result = await requestDietPlan({
+              ...payload,
+              payment_id: response.razorpay_payment_id,
             });
-            
-            const verifyRes = await fetch(`${API_BASE}/verify-payment`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                user_id: userId,
-                program_id: 1, // Default program ID
-                amount: planPrice
-              })
-            });
-            const verifyData = await verifyRes.json();
-            console.log('[PAYMENT SUCCESS] Verify response:', verifyData);
-            
-            if (!verifyData.success) {
-              setDebugBackendError(verifyData.error || 'Failed to verify payment.');
-              setError(verifyData.error || 'Failed to verify payment.');
+            if (!result.success) {
+              setError('Plan generation failed. Please contact support at dhanushkumar102@gmail.com');
               setLoading(false);
               return;
             }
-            setSuccess('Payment successful! Your personalized diet plan is ready.');
-            setPaymentSuccess(true);
-            setGeneratedPlanId(verifyData.diet_program_id);
-            setPdfUrl(verifyData.pdf_url || verifyData.pdfUrl); // <-- ensure this is set
-            setDebugBackendError(null);
-          } catch (err) {
-            console.error('[PAYMENT SUCCESS ERROR]', err);
-            setError('Payment succeeded, but program generation failed. Please contact support.');
+            const token = getToken();
+            if (token) {
+              await storeUserProgram({
+                program_type: 'diet_plan',
+                pdf_url: result.pdf_url,
+                program_name: `Diet Plan \u2013 ${new Date().toLocaleDateString('en-IN')}`,
+              });
+            }
+            setPdfUrl(result.pdf_url);
+            setSuccess('Your diet plan is ready! Click below to download.');
+            setLoading(false);
+          } catch {
+            setError('Plan generation failed. Please contact support at dhanushkumar102@gmail.com');
             setLoading(false);
           }
-          setLoading(false);
+        },
+        modal: {
+          ondismiss: () => {
+            setError('Payment was cancelled.');
+            setLoading(false);
+          }
         },
         prefill: {
           name: user.full_name || '',
           email: user.email || '',
-          contact: user.phone || ''
+          contact: user.phone || '',
         },
-        theme: {
-          color: '#FFD700'
-        },
-        modal: {
-          ondismiss: function() {
-            setLoading(false);
-            setError('Payment was cancelled.');
-            setPdfUrl(null);
-          }
-        }
+        theme: { color: '#FFD700' }
       };
+
       const rzp = new window.Razorpay(options);
       rzp.open();
-    } catch (err) {
-      setError(err.message);
+    } catch {
+      setError('Something went wrong. Please try again.');
       setLoading(false);
     }
   };
 
   return (
-    <Container maxWidth="xs" sx={{ minHeight: '100vh', pt: { xs: 14, sm: 18 }, pb: { xs: 4, sm: 6 }, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'linear-gradient(135deg, #181818 60%, #FFD70011 100%)' }}>
-      <Box sx={{
-        width: '100%',
-        bgcolor: 'rgba(17,17,17,0.98)',
-        borderRadius: 5,
-        boxShadow: '0 8px 32px 0 #FFD70033',
-        p: 5,
-        border: '2px solid #FFD700',
-        maxWidth: 480,
-        mx: 'auto',
-      }}>
-        <Typography variant="h4" align="center" fontWeight={900} sx={{ color: '#FFD700', letterSpacing: 1, mb: 1, fontFamily: 'Cinzel, serif', fontSize: { xs: 28, sm: 32 } }}>
-          Personalize Your Diet Plan
-        </Typography>
-        <Typography align="center" sx={{ color: '#ccc', fontSize: 16, mb: 3, fontWeight: 500 }}>
-          Please provide your details for a truly personalized Plan.
-        </Typography>
-        <form onSubmit={handleSubmit}>
-          <TextField label="Full Name" name="full_name" value={form.full_name} onChange={handleChange} fullWidth required 
-            sx={{ mb: 2, input: { color: '#fff', bgcolor: '#222' }, label: { color: '#ccc' }, '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#ccc' }, '&:hover fieldset': { borderColor: '#fff' }, '&.Mui-focused fieldset': { borderColor: '#FFD700' } } }}
-          />
-          <TextField label="Age" name="age" value={form.age} onChange={handleChange} type="number" fullWidth required sx={{ mb: 2, input: { color: '#fff', bgcolor: '#222' }, label: { color: '#ccc' } }} />
-          <TextField label="Height (cm)" name="height_cm" value={form.height_cm} onChange={handleChange} type="number" fullWidth required sx={{ mb: 2, input: { color: '#fff', bgcolor: '#222' }, label: { color: '#ccc' } }} />
-          <TextField label="Weight (kg)" name="weight_kg" value={form.weight_kg} onChange={handleChange} type="number" fullWidth required sx={{ mb: 2, input: { color: '#fff', bgcolor: '#222' }, label: { color: '#ccc' } }} />
-          <TextField select label="Gender" name="gender" value={form.gender} onChange={handleChange} fullWidth required 
-            sx={{ mb: 2, input: { color: '#fff', bgcolor: '#222' }, label: { color: '#FFD700' }, '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: '#FFD700' }, '&:hover fieldset': { borderColor: '#fff' }, '&.Mui-focused fieldset': { borderColor: '#FFD700' } } }}>
-            <MenuItem value="Male">Male</MenuItem>
-            <MenuItem value="Female">Female</MenuItem>
-            <MenuItem value="Other">Other</MenuItem>
-          </TextField>
-          <TextField select label="Activity Level" name="activity_level" value={form.activity_level} onChange={handleChange} fullWidth required sx={{ mb: 2 }}>
-            <MenuItem value="Sedentary">Sedentary</MenuItem>
-            <MenuItem value="Active">Active</MenuItem>
-          </TextField>
-          <TextField label="Workout Frequency (per week)" name="workout_frequency" value={form.workout_frequency} onChange={handleChange} type="number" fullWidth required sx={{ mb: 2 }} />
-          <TextField label="Workout Duration (minutes per session)" name="workout_duration_minutes" value={form.workout_duration_minutes} onChange={handleChange} type="number" fullWidth required sx={{ mb: 2 }} />
-          <TextField
-            select
-            label="Food Allergies"
-            name="food_allergies"
-            value={form.food_allergies}
-            onChange={handleAllergyChange}
-            SelectProps={{ multiple: true, renderValue: (selected) => selected.join(', ') }}
-            fullWidth
-            sx={{ mb: 2 }}
-            helperText="Select all that apply"
-          >
-            {foodAllergyOptions.map((food) => (
-              <MenuItem key={food} value={food}>{food}</MenuItem>
-            ))}
-          </TextField>
-          <TextField label="Dietary Preferences (vegan, etc)" name="dietary_preferences" value={form.dietary_preferences} onChange={handleChange} fullWidth sx={{ mb: 2 }} />
-          <TextField label="Medical Conditions (if any)" name="medical_conditions" value={form.medical_conditions} onChange={handleChange} fullWidth sx={{ mb: 2 }} />
-          <TextField label="Meal Frequency (meals/day)" name="meal_frequency" value={form.meal_frequency} onChange={handleChange} type="number" fullWidth sx={{ mb: 2 }} />
-          <TextField label="Water Intake (liters/day)" name="water_intake" value={form.water_intake} onChange={handleChange} type="number" fullWidth sx={{ mb: 2 }} />
-          <TextField label="Supplement Use (protein, etc)" name="supplement_use" value={form.supplement_use} onChange={handleChange} fullWidth sx={{ mb: 2 }} />
-          <TextField label="Sleep Duration (hours/night)" name="sleep_duration" value={form.sleep_duration} onChange={handleChange} type="number" fullWidth sx={{ mb: 2 }} />
-          <TextField
-            select
-            label="Cuisine Preference"
-            name="cuisine_preference"
-            value={form.cuisine_preference}
-            onChange={handleChange}
-            fullWidth
-            required
-            SelectProps={{
-              displayEmpty: true,
-              renderValue: selected => {
-                if (!selected) return <span style={{ color: '#888' }}>Select Cuisine Preference…</span>;
-                const icon = selected === 'North Indian' ? '🥘' : selected === 'South Indian' ? '🍛' : '🍽️';
-                return <span>{icon} {selected}</span>;
-              }
-            }}
-            sx={{
-              mb: 2,
-              input: { color: '#fff', bgcolor: '#222' },
-              label: { color: '#FFD700', fontWeight: 700 },
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 3,
-                fontSize: 18,
-                boxShadow: '0 2px 8px #FFD70022',
-                '& fieldset': { borderColor: '#FFD700' },
-                '&:hover fieldset': { borderColor: '#fff' },
-                '&.Mui-focused fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-              }
-            }}
-          >
-            {cuisineOptions.map(option => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.value === 'North Indian' && '🥘 '}
-                {option.value === 'South Indian' && '🍛 '}
-                {option.value === 'Both' && '🍽️ '}
-                {option.label}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField select label="Goal" name="goal" value={form.goal} onChange={handleChange} fullWidth required sx={{ mb: 3 }}>
-            {goalOptions.map(option => (
-              <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
-            ))}
-          </TextField>
-          <TextField label="Specific Health Goals" name="specific_goals" value={form.specific_goals} onChange={handleChange} fullWidth sx={{ mb: 3 }} />
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
-          
-          {paymentSuccess && pdfUrl && (
+    <Box sx={{ bgcolor: '#000', minHeight: '100vh', pt: { xs: 10, md: 12 }, pb: { xs: 4, md: 8 } }}>
+      <Container maxWidth="sm">
+        <Paper
+          elevation={0}
+          sx={{
+            bgcolor: '#111', border: '1px solid #222', borderRadius: 3,
+            p: { xs: 3, sm: 5 }, position: 'relative', overflow: 'hidden',
+            '&::before': {
+              content: '""', position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+              background: 'linear-gradient(90deg, #FFD700, #fff 50%, #FFD700)',
+            }
+          }}
+        >
+          <Typography sx={{
+            fontFamily: 'Cinzel, serif', fontWeight: 900,
+            fontSize: { xs: 20, sm: 24 }, color: '#FFD700',
+            textAlign: 'center', mb: 0.5, letterSpacing: 1,
+          }}>
+            Personalize Your Diet Plan
+          </Typography>
+          <Typography sx={{ color: '#888', textAlign: 'center', fontSize: 13, mb: 1 }}>
+            Fill in your details for a truly personalized AI-generated plan.
+          </Typography>
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Box component="span" sx={{
+              bgcolor: 'rgba(255,215,0,0.1)', color: '#FFD700', fontWeight: 800,
+              fontSize: 18, px: 2, py: 0.5, borderRadius: 1,
+              fontFamily: 'Montserrat,sans-serif',
+            }}>₹{PLAN_PRICE}</Box>
+          </Box>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 2, bgcolor: 'rgba(244,67,54,0.1)', border: '1px solid rgba(244,67,54,0.3)', color: '#F44336', '& .MuiAlert-icon': { color: '#F44336' } }}>
+              {error}
+            </Alert>
+          )}
+          {success && (
+            <Alert severity="success" sx={{ mb: 2, bgcolor: 'rgba(76,175,80,0.1)', border: '1px solid rgba(76,175,80,0.3)', color: '#4CAF50', '& .MuiAlert-icon': { color: '#4CAF50' } }}>
+              {success}
+            </Alert>
+          )}
+
+          {pdfUrl && (
             <Button
-              href={`${API_BASE.replace('/api', '')}${pdfUrl.startsWith('/') ? '' : '/'}${pdfUrl}`}
+              href={getPdfDownloadUrl(pdfUrl)}
               target="_blank"
               rel="noopener noreferrer"
-              variant="contained"
-              color="success"
               fullWidth
               sx={{
-                fontWeight: 900,
-                fontSize: 20,
-                borderRadius: 3,
-                mb: 3,
-                py: 1.5,
-                bgcolor: 'linear-gradient(90deg, #4caf50 60%, #fff 100%)',
-                color: '#111',
-                boxShadow: '0 4px 16px #4caf5044',
-                '&:hover': {
-                  bgcolor: 'linear-gradient(90deg, #fff 60%, #4caf50 100%)',
-                  color: '#111',
-                  boxShadow: '0 8px 32px #4caf5066'
-                }
+                bgcolor: '#FFD700', color: '#000', fontWeight: 800, fontSize: 14,
+                py: 1.5, borderRadius: 2, mb: 2, letterSpacing: 0.5,
+                fontFamily: 'Montserrat,sans-serif',
+                '&:hover': { bgcolor: '#E6C200' },
               }}
             >
-              DOWNLOAD PDF
+              DOWNLOAD YOUR DIET PLAN
             </Button>
           )}
-          {debugBackendError && (
-            <div style={{ color: 'red', marginTop: 8 }}><b>Backend Error:</b> {debugBackendError}</div>
-          )}
-          <Button type="submit" variant="contained" fullWidth size="large"
-            sx={{ fontWeight: 900, fontSize: 20, bgcolor: 'linear-gradient(90deg, #FFD700 60%, #fff 100%)', color: '#111', boxShadow: '0 4px 16px #FFD70044', borderRadius: 3, py: 1.5, mt: 2, '&:hover': { bgcolor: 'linear-gradient(90deg, #fff 60%, #FFD700 100%)', color: '#111', boxShadow: '0 8px 32px #FFD70066' } }}
-            disabled={loading}>
-            {loading ? <CircularProgress size={28} color="inherit" /> : 'GENERATE MY DIET PLAN'}
-          </Button>
-        </form>
-      </Box>
-    </Container>
+
+          <form onSubmit={handleSubmit}>
+            <SectionLabel>Personal Info</SectionLabel>
+            <TextField label="Full Name *" name="full_name" value={form.full_name} onChange={handleChange} fullWidth required sx={FIELD_SX} />
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              <TextField label="Age *" name="age" type="number" value={form.age} onChange={handleChange} required sx={{ ...FIELD_SX, mb: 0 }} inputProps={{ min: 10, max: 100 }} />
+              <TextField label="Height (cm) *" name="height_cm" type="number" value={form.height_cm} onChange={handleChange} required sx={{ ...FIELD_SX, mb: 0 }} inputProps={{ min: 100, max: 250 }} />
+            </Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2.5 }}>
+              <TextField label="Weight (kg) *" name="weight_kg" type="number" value={form.weight_kg} onChange={handleChange} required sx={{ ...FIELD_SX, mb: 0 }} inputProps={{ min: 20, max: 300 }} />
+              <TextField select label="Gender *" name="gender" value={form.gender} onChange={handleChange} required sx={{ ...FIELD_SX, mb: 0 }}>
+                <MenuItem value="Male">Male</MenuItem>
+                <MenuItem value="Female">Female</MenuItem>
+                <MenuItem value="Other">Other</MenuItem>
+              </TextField>
+            </Box>
+            <Box sx={{ mt: 2.5 }}>
+              <TextField select label="Activity Level *" name="activity_level" value={form.activity_level} onChange={handleChange} fullWidth required sx={FIELD_SX}>
+                <MenuItem value="Sedentary">Sedentary</MenuItem>
+                <MenuItem value="Lightly Active">Lightly Active</MenuItem>
+                <MenuItem value="Moderately Active">Moderately Active</MenuItem>
+                <MenuItem value="Very Active">Very Active</MenuItem>
+                <MenuItem value="Athlete">Athlete</MenuItem>
+              </TextField>
+            </Box>
+
+            <SectionLabel>Workout Details</SectionLabel>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              <TextField label="Workout Frequency (days/week) *" name="workout_frequency" type="number" value={form.workout_frequency} onChange={handleChange} required sx={{ ...FIELD_SX, mb: 0 }} inputProps={{ min: 0, max: 7 }} />
+              <TextField label="Workout Duration (min/session) *" name="workout_duration_minutes" type="number" value={form.workout_duration_minutes} onChange={handleChange} required sx={{ ...FIELD_SX, mb: 0 }} inputProps={{ min: 0 }} />
+            </Box>
+
+            <SectionLabel>Goals & Preferences</SectionLabel>
+            <TextField select label="Goal *" name="goal" value={form.goal} onChange={handleChange} fullWidth required sx={FIELD_SX}>
+              <MenuItem value="Fat Loss">Fat Loss</MenuItem>
+              <MenuItem value="Weight Gain">Weight Gain</MenuItem>
+              <MenuItem value="Lean Muscle Gain">Lean Muscle Gain</MenuItem>
+              <MenuItem value="General Health">General Health</MenuItem>
+            </TextField>
+            <TextField select label="Cuisine Preference *" name="cuisine_preference" value={form.cuisine_preference} onChange={handleChange} fullWidth required sx={FIELD_SX}>
+              <MenuItem value="North Indian">North Indian</MenuItem>
+              <MenuItem value="South Indian">South Indian</MenuItem>
+              <MenuItem value="Both">Both</MenuItem>
+            </TextField>
+            <TextField label="Specific Goals" name="specific_goals" value={form.specific_goals} onChange={handleChange} fullWidth multiline rows={2} sx={FIELD_SX} placeholder="e.g. lose 5kg in 3 months" />
+
+            <SectionLabel>Diet & Health</SectionLabel>
+            <TextField
+              select
+              label="Food Allergies"
+              name="food_allergies"
+              value={form.food_allergies}
+              onChange={handleAllergyChange}
+              fullWidth
+              helperText="Select all that apply"
+              SelectProps={{
+                multiple: true,
+                renderValue: (selected) => selected.join(', '),
+              }}
+              sx={FIELD_SX}
+            >
+              {FOOD_ALLERGY_OPTIONS.map(opt => (
+                <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+              ))}
+            </TextField>
+            <TextField label="Dietary Preferences" name="dietary_preferences" value={form.dietary_preferences} onChange={handleChange} fullWidth sx={FIELD_SX} placeholder="e.g. vegetarian, vegan, eggetarian" />
+            <TextField label="Medical Conditions" name="medical_conditions" value={form.medical_conditions} onChange={handleChange} fullWidth sx={FIELD_SX} placeholder="e.g. diabetes, hypertension" />
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              <TextField label="Meal Frequency (meals/day)" name="meal_frequency" type="number" value={form.meal_frequency} onChange={handleChange} sx={{ ...FIELD_SX, mb: 0 }} inputProps={{ min: 1, max: 10 }} />
+              <TextField label="Water Intake (liters/day)" name="water_intake" type="number" value={form.water_intake} onChange={handleChange} sx={{ ...FIELD_SX, mb: 0 }} inputProps={{ min: 0, step: 0.5 }} />
+            </Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2.5 }}>
+              <TextField label="Sleep Duration (hours/night)" name="sleep_duration" type="number" value={form.sleep_duration} onChange={handleChange} sx={{ ...FIELD_SX, mb: 0 }} inputProps={{ min: 1, max: 12 }} />
+              <TextField label="Supplement Use" name="supplement_use" value={form.supplement_use} onChange={handleChange} sx={{ ...FIELD_SX, mb: 0 }} placeholder="e.g. protein, creatine" />
+            </Box>
+
+            <Box sx={{ mt: 3 }}>
+              <Button
+                type="submit"
+                fullWidth
+                disabled={loading}
+                sx={{
+                  bgcolor: '#FFD700', color: '#000', fontWeight: 800,
+                  fontSize: 15, py: 1.5, borderRadius: 2, letterSpacing: 0.5,
+                  fontFamily: 'Montserrat,sans-serif',
+                  '&:hover': { bgcolor: '#E6C200' },
+                  '&:disabled': { bgcolor: '#333', color: '#666' },
+                }}
+              >
+                {loading
+                  ? <CircularProgress size={22} sx={{ color: '#000' }} />
+                  : `PAY ₹${PLAN_PRICE} & GET MY DIET PLAN`
+                }
+              </Button>
+            </Box>
+          </form>
+        </Paper>
+      </Container>
+    </Box>
   );
 }

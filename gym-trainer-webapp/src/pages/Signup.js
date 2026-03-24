@@ -1,649 +1,371 @@
 import React, { useState, useEffect } from 'react';
-import { Box, TextField, Button, Typography, Alert, Container, Paper, Dialog, Avatar, Divider } from '@mui/material';
+import {
+  Box, Container, Paper, Typography, TextField, MenuItem,
+  Button, Alert, CircularProgress, Dialog, DialogContent, DialogActions
+} from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { Person, Email, Phone, Lock, Cake, Wc, Security } from '@mui/icons-material';
+import { registerUser } from '../api';
 
-// Validation functions
-const validateEmail = (email) => {
-  // More comprehensive email validation
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  
-  // Additional checks for common invalid patterns
-  if (!emailRegex.test(email)) {
-    return 'Please enter a valid email address (e.g., user@example.com)';
-  }
-  
-  // Check for repeated characters (like hdhdhhdh)
-  const localPart = email.split('@')[0];
-  if (/(.)\1{3,}/.test(localPart)) {
-    return 'Email contains too many repeated characters';
-  }
-  
-  // Check for valid domain structure
-  const domain = email.split('@')[1];
-  if (domain.startsWith('.') || domain.endsWith('.') || domain.includes('..')) {
-    return 'Invalid domain format in email address';
-  }
-  
-  // Check for reasonable length
-  if (localPart.length > 64 || domain.length > 253) {
-    return 'Email address is too long';
-  }
-  
-  // Check for valid TLD (top-level domain)
-  const tld = domain.split('.').pop();
-  if (tld.length < 2 || tld.length > 6) {
-    return 'Invalid domain extension';
-  }
-  
-  return null;
+const generateCaptcha = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 };
 
-const validatePhone = (phone) => {
-  // Accepts formats: +91-1234567890, 1234567890, 123-456-7890, (123) 456-7890
-  const phoneRegex = /^(\+?[\d\s\-\(\)]{10,15})$/;
-  if (!phoneRegex.test(phone)) {
-    return 'Please enter a valid phone number (10-15 digits)';
-  }
-  return null;
+const FIELD_SX = {
+  mb: 2.5,
+  '& .MuiOutlinedInput-root': {
+    borderRadius: 2,
+    '& fieldset': { borderColor: '#333' },
+    '&:hover fieldset': { borderColor: '#FFD700' },
+    '&.Mui-focused fieldset': { borderColor: '#FFD700' },
+  },
+  '& .MuiInputLabel-root': { color: '#888' },
+  '& .MuiInputLabel-root.Mui-focused': { color: '#FFD700' },
+  '& .MuiInputBase-input': { color: '#fff', backgroundColor: '#1A1A1A' },
+  '& .MuiSelect-icon': { color: '#888' },
 };
 
-const validateCaptcha = (captcha, userInput) => {
-  if (!userInput) {
-    return 'Please enter the verification code';
-  }
-  if (userInput.toLowerCase() !== captcha.toLowerCase()) {
-    return 'Verification code does not match';
-  }
-  return null;
-};
+function SectionLabel({ children }) {
+  return (
+    <Typography sx={{
+      fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+      letterSpacing: 1.5, color: '#FFD700', mb: 2, mt: 1,
+    }}>
+      {children}
+    </Typography>
+  );
+}
 
-const Signup = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [gender, setGender] = useState('');
-  const [dob, setDob] = useState('');
+export default function Signup() {
+  const [form, setForm] = useState({
+    fullName: '', email: '', phone: '', gender: '', dob: '',
+    password: '', confirmPassword: '',
+  });
   const [captchaInput, setCaptchaInput] = useState('');
-  const [captchaCode, setCaptchaCode] = useState('');
+  const [captchaCode, setCaptchaCode] = useState(() => generateCaptcha());
   const [error, setError] = useState('');
-  const [showWarning, setShowWarning] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [warnOpen, setWarnOpen] = useState(false);
 
-  // Generate CAPTCHA code
-  const generateCaptcha = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 6; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (localStorage.getItem('token')) {
+      navigate('/profile', { replace: true });
     }
-    setCaptchaCode(result);
+  }, [navigate]);
+
+  const refreshCaptcha = () => {
+    setCaptchaCode(generateCaptcha());
+    setCaptchaInput('');
   };
 
-  // Generate CAPTCHA on component mount
-  useEffect(() => {
-    generateCaptcha();
-  }, []);
+  const isFormFilled = () =>
+    Object.values(form).some(v => v.trim && v.trim() !== '');
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Enhanced validation
-    if (!email || !password || !confirmPassword || !fullName || !phone || !gender || !dob || !captchaInput) {
-      setError('Please fill all required fields including verification code.');
-      return;
-    }
-    
-    // Email validation
-    const emailError = validateEmail(email);
-    if (emailError) {
-      setError(emailError);
-      return;
-    }
-    
-    // Phone validation
-    const phoneError = validatePhone(phone);
-    if (phoneError) {
-      setError(phoneError);
-      return;
-    }
+    setError('');
 
-    // CAPTCHA validation
-    const captchaError = validateCaptcha(captchaCode, captchaInput);
-    if (captchaError) {
-      setError(captchaError);
+    const { fullName, email, phone, gender, dob, password, confirmPassword } = form;
+
+    if (!fullName || !email || !phone || !gender || !dob || !password || !confirmPassword || !captchaInput) {
+      setError('All fields are required.');
       return;
     }
-    
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    const digitsOnly = phone.replace(/\D/g, '');
+    if (digitsOnly.length < 10) {
+      setError('Phone number must be at least 10 digits.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+    if (captchaInput.toUpperCase() !== captchaCode) {
+      setError('Verification code does not match.');
+      refreshCaptcha();
       return;
     }
-    
-    setError('');
+
+    setLoading(true);
     try {
-      const result = await import('../api').then(api => api.registerUser({ email, password, full_name: fullName, phone, gender, dob }));
+      const result = await registerUser({
+        full_name: fullName,
+        email,
+        phone,
+        gender,
+        dob,
+        password,
+      });
       if (result.success) {
-        setError('');
-        localStorage.setItem('user', JSON.stringify({ email, full_name: fullName, phone, gender, dob }));
+        localStorage.setItem('token', result.token);
+        localStorage.setItem('user', JSON.stringify(result.user));
         window.location.href = '/profile';
       } else {
-        setError(result.error || 'Signup failed.');
+        setError(result.error || 'Registration failed. Please try again.');
+        refreshCaptcha();
       }
-    } catch (err) {
-      setError('Signup failed.');
+    } catch {
+      setError('Registration failed. Please check your connection and try again.');
+      refreshCaptcha();
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Real-time validation handlers
-  const handleEmailChange = (e) => {
-    const value = e.target.value;
-    setEmail(value);
-    if (value && validateEmail(value)) {
-      // Clear error if user is typing and it's valid
-      if (!error.includes('email')) {
-        setError('');
-      }
+  const handleGoToLogin = () => {
+    if (isFormFilled()) {
+      setWarnOpen(true);
+    } else {
+      navigate('/login');
     }
-  };
-
-  const handlePhoneChange = (e) => {
-    const value = e.target.value;
-    setPhone(value);
-    if (value && validatePhone(value)) {
-      // Clear error if user is typing and it's valid
-      if (!error.includes('phone')) {
-        setError('');
-      }
-    }
-  };
-
-  const handleCaptchaChange = (e) => {
-    const value = e.target.value.toUpperCase();
-    setCaptchaInput(value);
-    if (value && validateCaptcha(captchaCode, value)) {
-      if (!error.includes('verification')) {
-        setError('');
-      }
-    }
-  };
-
-  const navigate = useNavigate();
-
-  const isFormFilled = () => {
-    return email || password || confirmPassword || fullName || phone || gender || dob;
   };
 
   return (
-    <Box sx={{ 
-      minHeight: '100vh', 
-      bgcolor: 'linear-gradient(135deg, #181818 60%, #FFD70011 100%)', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      pt: { xs: 15, sm: 18 },
-      pb: { xs: 4, sm: 6 }
-    }}>
+    <Box sx={{ bgcolor: '#000', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', pt: { xs: 10, sm: 12 }, pb: 4 }}>
       <Container maxWidth="sm">
-        <Paper elevation={16} sx={{ 
-          p: { xs: 4, sm: 6 }, 
-          borderRadius: 4, 
-          boxShadow: '0 16px 64px 0 #FFD70033',
-          bgcolor: 'rgba(17,17,17,0.98)',
-          border: '2px solid #FFD700',
-          maxWidth: 600,
-          mx: 'auto',
-          position: 'relative',
-          overflow: 'hidden',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: '4px',
-            background: 'linear-gradient(90deg, #FFD700, #fff, #FFD700)',
-            borderRadius: '4px 4px 0 0'
-          }
-        }}>
-          {/* Header Section */}
-          <Box sx={{ textAlign: 'center', mb: 4 }}>
-            <Avatar sx={{ 
-              width: 80, 
-              height: 80, 
-              mx: 'auto', 
-              mb: 2, 
-              bgcolor: '#FFD700',
-              color: '#111',
-              fontSize: 32,
-              fontWeight: 900,
-              boxShadow: '0 8px 32px #FFD70044'
-            }}>
-              <Person sx={{ fontSize: 40 }} />
-            </Avatar>
-            <Typography variant="h4" fontWeight={900} sx={{ 
-              color: '#FFD700', 
-              fontSize: { xs: 28, sm: 32 },
-              mb: 1,
-              letterSpacing: 1
-            }}>
-              Create Your Account
-            </Typography>
-            <Typography variant="body1" sx={{ 
-              color: '#ccc', 
-              fontSize: 16, 
-              fontWeight: 500,
-              opacity: 0.8
-            }}>
-              Join Xerxes and start your fitness journey today
-            </Typography>
+        <Paper
+          elevation={0}
+          sx={{
+            bgcolor: '#111',
+            border: '1px solid #222',
+            borderRadius: 3,
+            p: { xs: 3, sm: 5 },
+            position: 'relative',
+            overflow: 'hidden',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0, left: 0, right: 0, height: 3,
+              background: 'linear-gradient(90deg, #FFD700, #fff 50%, #FFD700)',
+            }
+          }}
+        >
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <img src="/xerxes-logo.png" alt="Xerxes" style={{ height: 48, objectFit: 'contain' }} />
           </Box>
 
+          <Typography sx={{
+            fontFamily: 'Montserrat, sans-serif', fontWeight: 900,
+            fontSize: { xs: 22, sm: 26 }, color: '#FFD700',
+            textAlign: 'center', mb: 0.5,
+          }}>
+            Join Xerxes
+          </Typography>
+          <Typography sx={{ color: '#888', textAlign: 'center', fontSize: 13, mb: 3 }}>
+            Start your transformation today
+          </Typography>
+
           {error && (
-            <Alert severity="error" sx={{ 
-              mb: 3, 
-              borderRadius: 3,
-              bgcolor: 'rgba(244,67,54,0.1)',
-              border: '1px solid #f44336'
-            }}>
+            <Alert severity="error" sx={{ mb: 2, bgcolor: 'rgba(244,67,54,0.1)', border: '1px solid rgba(244,67,54,0.3)', color: '#F44336', '& .MuiAlert-icon': { color: '#F44336' } }}>
               {error}
             </Alert>
           )}
 
           <form onSubmit={handleSubmit}>
-            {/* Personal Information Section */}
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="h6" sx={{ 
-                color: '#FFD700', 
-                mb: 3, 
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1
-              }}>
-                <Person sx={{ fontSize: 20 }} />
-                Personal Information
-              </Typography>
-              
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
-                <TextField
-                  label="Full Name"
-                  type="text"
-                  fullWidth
-                  value={fullName}
-                  onChange={e => setFullName(e.target.value)}
-                  required
-                  variant="outlined"
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 3,
-                      fontSize: 16,
-                      boxShadow: '0 2px 8px #FFD70022',
-                      '& fieldset': { borderColor: '#FFD700' },
-                      '&:hover fieldset': { borderColor: '#fff' },
-                      '&.Mui-focused fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-                    },
-                    '& .MuiInputLabel-root': { color: '#ccc' },
-                    '& .MuiInputBase-input': { color: '#fff' }
-                  }}
-                />
-                
-                <TextField
-                  label="Phone Number"
-                  type="tel"
-                  fullWidth
-                  value={phone}
-                  onChange={handlePhoneChange}
-                  required
-                  variant="outlined"
-                  placeholder="e.g., 1234567890 or +91-1234567890"
-                  helperText="Enter 10 digit phone number"
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 3,
-                      fontSize: 16,
-                      boxShadow: '0 2px 8px #FFD70022',
-                      '& fieldset': { borderColor: '#FFD700' },
-                      '&:hover fieldset': { borderColor: '#fff' },
-                      '&.Mui-focused fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-                    },
-                    '& .MuiInputLabel-root': { color: '#ccc' },
-                    '& .MuiInputBase-input': { color: '#fff' },
-                    '& .MuiFormHelperText-root': { color: '#888', fontSize: 12 }
-                  }}
-                />
-              </Box>
+            <SectionLabel>Personal Info</SectionLabel>
 
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3, mt: 3 }}>
-                <TextField
-                  select
-                  label="Gender"
-                  fullWidth
-                  value={gender}
-                  onChange={e => setGender(e.target.value)}
-                  required
-                  variant="outlined"
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 3,
-                      fontSize: 16,
-                      boxShadow: '0 2px 8px #FFD70022',
-                      '& fieldset': { borderColor: '#FFD700' },
-                      '&:hover fieldset': { borderColor: '#fff' },
-                      '&.Mui-focused fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-                    },
-                    '& .MuiInputLabel-root': { color: '#ccc' },
-                    '& .MuiInputBase-input': { color: '#fff' }
-                  }}
-                >
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </TextField>
-                
-                <TextField
-                  label="Date of Birth"
-                  type="date"
-                  fullWidth
-                  value={dob}
-                  onChange={e => setDob(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  required
-                  variant="outlined"
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 3,
-                      fontSize: 16,
-                      boxShadow: '0 2px 8px #FFD70022',
-                      '& fieldset': { borderColor: '#FFD700' },
-                      '&:hover fieldset': { borderColor: '#fff' },
-                      '&.Mui-focused fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-                    },
-                    '& .MuiInputLabel-root': { color: '#ccc' },
-                    '& .MuiInputBase-input': { color: '#fff' }
-                  }}
-                />
-              </Box>
+            <TextField
+              label="Full Name"
+              name="fullName"
+              fullWidth
+              required
+              value={form.fullName}
+              onChange={handleChange}
+              sx={FIELD_SX}
+            />
+            <TextField
+              label="Phone Number"
+              name="phone"
+              type="tel"
+              fullWidth
+              required
+              value={form.phone}
+              onChange={handleChange}
+              helperText="10+ digit mobile number"
+              sx={FIELD_SX}
+            />
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+              <TextField
+                select
+                label="Gender"
+                name="gender"
+                fullWidth
+                required
+                value={form.gender}
+                onChange={handleChange}
+                sx={{ ...FIELD_SX, mb: 0 }}
+              >
+                <MenuItem value="Male">Male</MenuItem>
+                <MenuItem value="Female">Female</MenuItem>
+                <MenuItem value="Other">Other</MenuItem>
+              </TextField>
+              <TextField
+                label="Date of Birth"
+                name="dob"
+                type="date"
+                fullWidth
+                required
+                value={form.dob}
+                onChange={handleChange}
+                InputLabelProps={{ shrink: true }}
+                sx={{ ...FIELD_SX, mb: 0 }}
+              />
             </Box>
 
-            <Divider sx={{ my: 4, borderColor: '#FFD700', opacity: 0.3 }} />
+            <SectionLabel>Account</SectionLabel>
 
-            {/* Account Information Section */}
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="h6" sx={{ 
-                color: '#FFD700', 
-                mb: 3, 
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1
+            <TextField
+              label="Email Address"
+              name="email"
+              type="email"
+              fullWidth
+              required
+              value={form.email}
+              onChange={handleChange}
+              sx={FIELD_SX}
+            />
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+              <TextField
+                label="Password"
+                name="password"
+                type="password"
+                fullWidth
+                required
+                value={form.password}
+                onChange={handleChange}
+                helperText="Minimum 8 characters"
+                sx={{ ...FIELD_SX, mb: 0 }}
+              />
+              <TextField
+                label="Confirm Password"
+                name="confirmPassword"
+                type="password"
+                fullWidth
+                required
+                value={form.confirmPassword}
+                onChange={handleChange}
+                sx={{ ...FIELD_SX, mb: 0 }}
+              />
+            </Box>
+
+            <SectionLabel>Verification</SectionLabel>
+
+            <Box sx={{ display: 'flex', gap: 1.5, mb: 1.5, alignItems: 'center' }}>
+              <Box sx={{
+                flex: 1, bgcolor: '#1A1A1A', border: '1px solid #333',
+                borderRadius: 2, py: 2, px: 3, textAlign: 'center', userSelect: 'none',
               }}>
-                <Lock sx={{ fontSize: 20 }} />
-                Account Information
-              </Typography>
-              
-              <TextField
-                label="Email Address"
-                type="email"
-                fullWidth
-                value={email}
-                onChange={handleEmailChange}
-                required
-                variant="outlined"
-                placeholder="user@example.com"
-                helperText="Enter a valid email address"
-                sx={{ 
-                  mb: 3,
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 3,
-                    fontSize: 16,
-                    boxShadow: '0 2px 8px #FFD70022',
-                    '& fieldset': { borderColor: '#FFD700' },
-                    '&:hover fieldset': { borderColor: '#fff' },
-                    '&.Mui-focused fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-                  },
-                  '& .MuiInputLabel-root': { color: '#ccc' },
-                  '& .MuiInputBase-input': { color: '#fff' },
-                  '& .MuiFormHelperText-root': { color: '#888', fontSize: 12 }
-                }}
-              />
-              
-              <TextField
-                label="Phone Number"
-                type="tel"
-                fullWidth
-                value={phone}
-                onChange={handlePhoneChange}
-                required
-                variant="outlined"
-                placeholder="e.g., 1234567890 or +91-1234567890"
-                helperText="Enter 10 digit phone number"
-                sx={{ 
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 3,
-                    fontSize: 16,
-                    boxShadow: '0 2px 8px #FFD70022',
-                    '& fieldset': { borderColor: '#FFD700' },
-                    '&:hover fieldset': { borderColor: '#fff' },
-                    '&.Mui-focused fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-                  },
-                  '& .MuiInputLabel-root': { color: '#ccc' },
-                  '& .MuiInputBase-input': { color: '#fff' },
-                  '& .MuiFormHelperText-root': { color: '#888', fontSize: 12 }
-                }}
-              />
-
-              <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'center' }}>
-                <Box sx={{ 
-                  flex: 1, 
-                  bgcolor: '#222', 
-                  borderRadius: 3, 
-                  p: 2, 
-                  textAlign: 'center',
-                  border: '2px solid #FFD700',
-                  boxShadow: '0 2px 8px #FFD70022'
+                <Typography sx={{
+                  color: '#FFD700', fontFamily: 'monospace', fontSize: 24,
+                  fontWeight: 900, letterSpacing: 8,
+                  textDecoration: 'line-through',
+                  textDecorationColor: 'rgba(255,215,0,0.25)',
                 }}>
-                  <Typography variant="h5" sx={{ 
-                    color: '#FFD700', 
-                    fontWeight: 900, 
-                    fontFamily: 'monospace',
-                    letterSpacing: 2,
-                    textShadow: '0 0 10px #FFD700'
-                  }}>
-                    {captchaCode}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: '#888', fontSize: 10 }}>
-                    Enter this code
-                  </Typography>
-                </Box>
-                <Button
-                  variant="outlined"
-                  onClick={generateCaptcha}
-                  sx={{
-                    borderRadius: 3,
-                    fontWeight: 700,
-                    fontSize: 14,
-                    py: 1.5,
-                    px: 2,
-                    borderColor: '#FFD700',
-                    color: '#FFD700',
-                    minWidth: 'auto',
-                    '&:hover': {
-                      borderColor: '#fff',
-                      color: '#fff',
-                      bgcolor: 'rgba(255,215,0,0.1)'
-                    }
-                  }}
-                >
-                  NEW
-                </Button>
+                  {captchaCode}
+                </Typography>
+                <Typography sx={{ color: '#555', fontSize: 10, mt: 0.5 }}>
+                  verification code
+                </Typography>
               </Box>
-
-              <TextField
-                label="Verification Code"
-                type="text"
-                fullWidth
-                value={captchaInput}
-                onChange={handleCaptchaChange}
-                required
+              <Button
+                onClick={refreshCaptcha}
                 variant="outlined"
-                placeholder="Enter the code above"
-                helperText="Enter the 6-character code shown above"
-                InputProps={{
-                  startAdornment: <Security sx={{ color: '#FFD700', mr: 1 }} />
+                size="small"
+                sx={{
+                  borderColor: '#333', color: '#888', minWidth: 64, py: 1,
+                  borderRadius: 2, fontSize: 11, fontWeight: 700,
+                  '&:hover': { borderColor: '#FFD700', color: '#FFD700', bgcolor: 'rgba(255,215,0,0.05)' }
                 }}
-                sx={{ 
-                  mb: 3,
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 3,
-                    fontSize: 16,
-                    boxShadow: '0 2px 8px #FFD70022',
-                    '& fieldset': { borderColor: '#FFD700' },
-                    '&:hover fieldset': { borderColor: '#fff' },
-                    '&:focus fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-                  },
-                  '& .MuiInputLabel-root': { color: '#ccc' },
-                  '& .MuiInputBase-input': { color: '#fff', textTransform: 'uppercase' },
-                  '& .MuiFormHelperText-root': { color: '#888', fontSize: 12 }
-                }}
-              />
-
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
-                <TextField
-                  label="Password"
-                  type="password"
-                  fullWidth
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                  variant="outlined"
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 3,
-                      fontSize: 16,
-                      boxShadow: '0 2px 8px #FFD70022',
-                      '& fieldset': { borderColor: '#FFD700' },
-                      '&:hover fieldset': { borderColor: '#fff' },
-                      '&.Mui-focused fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-                    },
-                    '& .MuiInputLabel-root': { color: '#ccc' },
-                    '& .MuiInputBase-input': { color: '#fff' }
-                  }}
-                />
-                
-                <TextField
-                  label="Confirm Password"
-                  type="password"
-                  fullWidth
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  required
-                  variant="outlined"
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 3,
-                      fontSize: 16,
-                      boxShadow: '0 2px 8px #FFD70022',
-                      '& fieldset': { borderColor: '#FFD700' },
-                      '&:hover fieldset': { borderColor: '#fff' },
-                      '&.Mui-focused fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-                    },
-                    '& .MuiInputLabel-root': { color: '#ccc' },
-                    '& .MuiInputBase-input': { color: '#fff' }
-                  }}
-                />
-              </Box>
+              >
+                NEW
+              </Button>
             </Box>
+            <TextField
+              label="Enter Verification Code"
+              fullWidth
+              required
+              value={captchaInput}
+              onChange={e => setCaptchaInput(e.target.value.toUpperCase())}
+              inputProps={{ maxLength: 6, style: { textTransform: 'uppercase', letterSpacing: 4 } }}
+              sx={FIELD_SX}
+            />
 
-            <Button 
-              type="submit" 
-              variant="contained" 
-              fullWidth 
-              size="large" 
-              sx={{ 
-                mt: 2, 
-                borderRadius: 3, 
-                fontWeight: 900, 
-                fontSize: 18, 
-                py: 1.5, 
-                boxShadow: '0 4px 16px #FFD70044',
-                bgcolor: 'linear-gradient(90deg, #FFD700 60%, #fff 100%)',
-                color: '#111',
-                '&:hover': { 
-                  bgcolor: 'linear-gradient(90deg, #fff 60%, #FFD700 100%)', 
-                  color: '#111',
-                  boxShadow: '0 8px 32px #FFD70066'
-                }
+            <Button
+              type="submit"
+              fullWidth
+              disabled={loading}
+              sx={{
+                bgcolor: '#FFD700', color: '#000', fontWeight: 800,
+                fontSize: 15, py: 1.5, mt: 1, borderRadius: 2, letterSpacing: 0.5,
+                fontFamily: 'Montserrat, sans-serif',
+                '&:hover': { bgcolor: '#E6C200' },
+                '&:disabled': { bgcolor: '#333', color: '#666' },
               }}
             >
-              CREATE ACCOUNT
+              {loading ? <CircularProgress size={22} sx={{ color: '#000' }} /> : 'CREATE ACCOUNT'}
             </Button>
-            
-            <Typography align="center" sx={{ mt: 4, color: '#ccc', fontSize: 14 }}>
+          </form>
+
+          <Box sx={{ textAlign: 'center', mt: 3 }}>
+            <Typography sx={{ color: '#888', fontSize: 13 }}>
               Already have an account?{' '}
-              <Button 
-                variant="text" 
-                size="small" 
-                onClick={() => {
-                  if (isFormFilled()) {
-                    setShowWarning(true);
-                  } else {
-                    navigate('/login');
-                  }
-                }} 
-                sx={{ 
-                  fontWeight: 700, 
-                  color: '#FFD700',
-                  textTransform: 'none',
-                  fontSize: 14,
-                  '&:hover': {
-                    color: '#fff',
-                    bgcolor: 'rgba(255,215,0,0.1)'
-                  }
-                }}
+              <Box
+                component="span"
+                onClick={handleGoToLogin}
+                sx={{ color: '#FFD700', fontWeight: 700, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
               >
                 Sign In
-              </Button>
+              </Box>
             </Typography>
-          </form>
-          
-          <Dialog open={showWarning} onClose={() => setShowWarning(false)}>
-            <Box sx={{ p: 4, textAlign: 'center', bgcolor: '#181818', color: '#fff' }}>
-              <Typography variant="h6" sx={{ mb: 2, color: '#FFD700' }}>
-                Complete Your Registration
-              </Typography>
-              <Typography variant="body2" sx={{ mb: 3, color: '#ccc' }}>
-                Please complete the signup form and click "Create Account" to register.
-              </Typography>
-              <Button 
-                variant="contained" 
-                onClick={() => setShowWarning(false)}
-                sx={{
-                  fontWeight: 700,
-                  borderRadius: 3,
-                  boxShadow: '0 2px 8px #FFD70044',
-                  bgcolor: 'linear-gradient(90deg, #FFD700 60%, #fff 100%)',
-                  color: '#111',
-                  '&:hover': {
-                    bgcolor: 'linear-gradient(90deg, #fff 60%, #FFD700 100%)',
-                    color: '#111',
-                    boxShadow: '0 4px 16px #FFD70066'
-                  }
-                }}
-              >
-                OK
-              </Button>
-            </Box>
-          </Dialog>
+          </Box>
         </Paper>
       </Container>
+
+      {/* Warn dialog */}
+      <Dialog
+        open={warnOpen}
+        onClose={() => setWarnOpen(false)}
+        PaperProps={{ sx: { bgcolor: '#111', border: '1px solid #333', borderRadius: 3 } }}
+      >
+        <DialogContent sx={{ p: 4 }}>
+          <Typography sx={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, color: '#FFD700', mb: 1 }}>
+            Leave this page?
+          </Typography>
+          <Typography sx={{ color: '#888', fontSize: 14, lineHeight: 1.7 }}>
+            You have unsaved information. Are you sure you want to leave?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 4, pb: 3, gap: 1 }}>
+          <Button
+            onClick={() => setWarnOpen(false)}
+            sx={{ borderColor: '#333', color: '#888', borderRadius: 2, px: 3,
+              border: '1px solid #333', '&:hover': { borderColor: '#FFD700', color: '#FFD700' } }}
+          >
+            Stay
+          </Button>
+          <Button
+            onClick={() => navigate('/login')}
+            sx={{ bgcolor: '#FFD700', color: '#000', fontWeight: 700, borderRadius: 2, px: 3,
+              '&:hover': { bgcolor: '#E6C200' } }}
+          >
+            Leave Anyway
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
-};
-
-export default Signup;
+}

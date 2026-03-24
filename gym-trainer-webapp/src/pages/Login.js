@@ -1,352 +1,245 @@
 import React, { useState, useEffect } from 'react';
-import { Box, TextField, Button, Typography, Alert, Container, Paper, InputBase } from '@mui/material';
+import {
+  Box, Container, Paper, Typography, TextField,
+  Button, Alert, CircularProgress
+} from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Person, Email, Phone, Lock, Cake, Wc, Security } from '@mui/icons-material';
+import { loginUser } from '../api';
 
-// Email validation function
+const generateCaptcha = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+};
+
 const validateEmail = (email) => {
-  // More comprehensive email validation
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  
-  // Additional checks for common invalid patterns
-  if (!emailRegex.test(email)) {
-    return 'Please enter a valid email address (e.g., user@example.com)';
-  }
-  
-  // Check for repeated characters (like hdhdhhdh)
-  const localPart = email.split('@')[0];
-  if (/(.)\1{3,}/.test(localPart)) {
-    return 'Email contains too many repeated characters';
-  }
-  
-  // Check for valid domain structure
-  const domain = email.split('@')[1];
-  if (domain.startsWith('.') || domain.endsWith('.') || domain.includes('..')) {
-    return 'Invalid domain format in email address';
-  }
-  
-  // Check for reasonable length
-  if (localPart.length > 64 || domain.length > 253) {
-    return 'Email address is too long';
-  }
-  
-  // Check for valid TLD (top-level domain)
-  const tld = domain.split('.').pop();
-  if (tld.length < 2 || tld.length > 6) {
-    return 'Invalid domain extension';
-  }
-  
-  return null;
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
 };
 
-const validateCaptcha = (captcha, userInput) => {
-  if (!userInput) {
-    return 'Please enter the verification code';
-  }
-  if (userInput.toLowerCase() !== captcha.toLowerCase()) {
-    return 'Verification code does not match';
-  }
-  return null;
+const FIELD_SX = {
+  mb: 2.5,
+  '& .MuiOutlinedInput-root': {
+    borderRadius: 2,
+    '& fieldset': { borderColor: '#333' },
+    '&:hover fieldset': { borderColor: '#FFD700' },
+    '&.Mui-focused fieldset': { borderColor: '#FFD700' },
+  },
+  '& .MuiInputLabel-root': { color: '#888' },
+  '& .MuiInputLabel-root.Mui-focused': { color: '#FFD700' },
+  '& .MuiInputBase-input': { color: '#fff', backgroundColor: '#1A1A1A' },
+  '& .MuiFormHelperText-root': { color: '#555', fontSize: 11 },
 };
 
-const Login = () => {
+export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [captchaInput, setCaptchaInput] = useState('');
-  const [captchaCode, setCaptchaCode] = useState('');
+  const [captchaCode, setCaptchaCode] = useState(() => generateCaptcha());
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  
-  const location = useLocation();
+
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Generate CAPTCHA code
-  const generateCaptcha = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 6; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setCaptchaCode(result);
-  };
-
-  // Generate CAPTCHA on component mount
   useEffect(() => {
-    generateCaptcha();
-  }, []);
+    if (localStorage.getItem('token')) {
+      navigate('/profile', { replace: true });
+    }
+  }, [navigate]);
 
-  // Check for messages from navigation state
   useEffect(() => {
     if (location.state?.message) {
-      if (location.state.message.includes('Successfully logged out')) {
-        setSuccessMessage(location.state.message);
-      } else {
-        setError(location.state.message);
-      }
-      // Clear the state to prevent showing the message again
-      navigate(location.pathname, { replace: true });
+      setSuccessMsg(location.state.message);
+      navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state, navigate]);
+  }, [location.state, location.pathname, navigate]);
+
+  const refreshCaptcha = () => {
+    setCaptchaCode(generateCaptcha());
+    setCaptchaInput('');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Enhanced validation
+    setError('');
+
     if (!email || !password || !captchaInput) {
-      setError('Email, password, and verification code are required.');
+      setError('All fields are required.');
       return;
     }
-    
-    // Email validation
-    const emailError = validateEmail(email);
-    if (emailError) {
-      setError(emailError);
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (captchaInput.toUpperCase() !== captchaCode) {
+      setError('Verification code does not match.');
+      refreshCaptcha();
       return;
     }
 
-    // CAPTCHA validation (now required)
-    const captchaError = validateCaptcha(captchaCode, captchaInput);
-    if (captchaError) {
-      setError(captchaError);
-      return;
-    }
-    
-    setError('');
     setLoading(true);
     try {
-      const result = await import('../api').then(api => api.loginUser({ email, password }));
+      const result = await loginUser({ email, password });
       if (result.success) {
         localStorage.setItem('token', result.token);
         localStorage.setItem('user', JSON.stringify(result.user));
         window.location.href = '/profile';
       } else {
-        setError(result.error || 'Login failed.');
+        if (result.error && (result.error.includes('Invalid') || result.error.includes('password') || result.error.includes('credentials'))) {
+          setError('Invalid email or password.');
+        } else {
+          setError(result.error || 'Login failed. Please try again.');
+        }
+        refreshCaptcha();
       }
-    } catch (err) {
-      setError('Login failed.');
+    } catch {
+      setError('Login failed. Please check your connection and try again.');
+      refreshCaptcha();
     } finally {
       setLoading(false);
     }
   };
 
-  // Real-time email validation
-  const handleEmailChange = (e) => {
-    const value = e.target.value;
-    setEmail(value);
-    if (value && validateEmail(value)) {
-      // Clear error if user is typing and it's valid
-      if (!error.includes('email')) {
-        setError('');
-      }
-    }
-  };
-
-  const handleCaptchaChange = (e) => {
-    const value = e.target.value.toUpperCase();
-    setCaptchaInput(value);
-    if (value && validateCaptcha(captchaCode, value)) {
-      if (!error.includes('verification')) {
-        setError('');
-      }
-    }
-  };
-
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'linear-gradient(135deg, #181818 60%, #FFD70011 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 }}>
-      <Container maxWidth="sm">
-        <Paper elevation={12} sx={{ p: 5, borderRadius: 5, boxShadow: '0 8px 32px 0 #FFD70033', bgcolor: 'rgba(17,17,17,0.98)', border: '2px solid #FFD700', maxWidth: 480, mx: 'auto' }}>
-          <Typography variant="h4" fontWeight={900} align="center" gutterBottom sx={{ color: '#FFD700', fontSize: { xs: 28, sm: 32 } }}>
+    <Box sx={{ bgcolor: '#000', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', pt: 10, pb: 4 }}>
+      <Container maxWidth="xs">
+        <Paper
+          elevation={0}
+          sx={{
+            bgcolor: '#111',
+            border: '1px solid #222',
+            borderRadius: 3,
+            p: { xs: 3, sm: 5 },
+            position: 'relative',
+            overflow: 'hidden',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0, left: 0, right: 0, height: 3,
+              background: 'linear-gradient(90deg, #FFD700, #fff 50%, #FFD700)',
+            }
+          }}
+        >
+          {/* Logo */}
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <img src="/xerxes-logo.png" alt="Xerxes" style={{ height: 48, objectFit: 'contain' }} />
+          </Box>
+
+          <Typography sx={{
+            fontFamily: 'Montserrat, sans-serif', fontWeight: 900,
+            fontSize: { xs: 22, sm: 26 }, color: '#FFD700',
+            textAlign: 'center', mb: 0.5,
+          }}>
             Welcome Back
           </Typography>
-          <Typography variant="body1" align="center" sx={{ color: '#ccc', mb: 4, fontSize: 16 }}>
+          <Typography sx={{ color: '#888', textAlign: 'center', fontSize: 13, mb: 3 }}>
             Sign in to continue your fitness journey
           </Typography>
 
-          {successMessage && (
-            <Alert severity="success" sx={{ mb: 3, borderRadius: 3, bgcolor: 'rgba(76,175,80,0.1)', border: '1px solid #4caf50' }}>
-              {successMessage}
+          {successMsg && (
+            <Alert severity="success" sx={{ mb: 2, bgcolor: 'rgba(76,175,80,0.1)', border: '1px solid rgba(76,175,80,0.3)', color: '#4CAF50', '& .MuiAlert-icon': { color: '#4CAF50' } }}>
+              {successMsg}
             </Alert>
           )}
-
           {error && (
-            <Alert severity="error" sx={{ mb: 3, borderRadius: 3, bgcolor: 'rgba(244,67,54,0.1)', border: '1px solid #f44336' }}>
+            <Alert severity="error" sx={{ mb: 2, bgcolor: 'rgba(244,67,54,0.1)', border: '1px solid rgba(244,67,54,0.3)', color: '#F44336', '& .MuiAlert-icon': { color: '#F44336' } }}>
               {error}
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} style={{ width: '100%' }}>
+          <form onSubmit={handleSubmit}>
             <TextField
-              label="Email"
+              label="Email Address"
               type="email"
               fullWidth
-              margin="normal"
               value={email}
-              onChange={handleEmailChange}
+              onChange={e => setEmail(e.target.value)}
               required
-              variant="outlined"
-              placeholder="user@example.com"
-              helperText="Enter a valid email address"
-              sx={{ 
-                mb: 3,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 3,
-                  fontSize: 18,
-                  boxShadow: '0 2px 8px #FFD70022',
-                  '& fieldset': { borderColor: '#FFD700' },
-                  '&:hover fieldset': { borderColor: '#fff' },
-                  '&.Mui-focused fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-                },
-                '& .MuiFormHelperText-root': { color: '#888', fontSize: 12 }
-              }}
+              sx={FIELD_SX}
             />
-
             <TextField
               label="Password"
               type="password"
               fullWidth
-              margin="normal"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              variant="outlined"
-              sx={{ 
-                mb: 3,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 3,
-                  fontSize: 18,
-                  boxShadow: '0 2px 8px #FFD70022',
-                  '& fieldset': { borderColor: '#FFD700' },
-                  '&:hover fieldset': { borderColor: '#fff' },
-                  '&.Mui-focused fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-                },
-                '& .MuiFormHelperText-root': { color: '#888', fontSize: 12 }
-              }}
+              sx={FIELD_SX}
             />
 
-            <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'center' }}>
-              <Box sx={{ 
-                flex: 1, 
-                bgcolor: '#222', 
-                borderRadius: 3, 
-                p: 2, 
-                textAlign: 'center',
-                border: '2px solid #FFD700',
-                boxShadow: '0 2px 8px #FFD70022'
-              }}>
-                <Typography variant="h5" sx={{ 
-                  color: '#FFD700', 
-                  fontWeight: 900, 
-                  fontFamily: 'monospace',
-                  letterSpacing: 2,
-                  textShadow: '0 0 10px #FFD700'
+            {/* Captcha */}
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', gap: 1.5, mb: 1.5, alignItems: 'center' }}>
+                <Box sx={{
+                  flex: 1, bgcolor: '#1A1A1A', border: '1px solid #333',
+                  borderRadius: 2, py: 2, px: 3, textAlign: 'center', userSelect: 'none',
                 }}>
-                  {captchaCode}
-                </Typography>
-                <Typography variant="caption" sx={{ color: '#888', fontSize: 10 }}>
-                  Enter this code
-                </Typography>
+                  <Typography sx={{
+                    color: '#FFD700', fontFamily: 'monospace', fontSize: 24,
+                    fontWeight: 900, letterSpacing: 8,
+                    textDecoration: 'line-through',
+                    textDecorationColor: 'rgba(255,215,0,0.25)',
+                  }}>
+                    {captchaCode}
+                  </Typography>
+                  <Typography sx={{ color: '#555', fontSize: 10, mt: 0.5 }}>
+                    verification code
+                  </Typography>
+                </Box>
+                <Button
+                  onClick={refreshCaptcha}
+                  variant="outlined"
+                  size="small"
+                  sx={{
+                    borderColor: '#333', color: '#888', minWidth: 64, py: 1,
+                    borderRadius: 2, fontSize: 11, fontWeight: 700,
+                    '&:hover': { borderColor: '#FFD700', color: '#FFD700', bgcolor: 'rgba(255,215,0,0.05)' }
+                  }}
+                >
+                  NEW
+                </Button>
               </Box>
-              <Button
-                variant="outlined"
-                onClick={generateCaptcha}
-                sx={{
-                  borderRadius: 3,
-                  fontWeight: 700,
-                  fontSize: 14,
-                  py: 1.5,
-                  px: 2,
-                  borderColor: '#FFD700',
-                  color: '#FFD700',
-                  minWidth: 'auto',
-                  '&:hover': {
-                    borderColor: '#fff',
-                    color: '#fff',
-                    bgcolor: 'rgba(255,215,0,0.1)'
-                  }
-                }}
-              >
-                NEW
-              </Button>
+              <TextField
+                label="Enter Verification Code"
+                fullWidth
+                value={captchaInput}
+                onChange={e => setCaptchaInput(e.target.value.toUpperCase())}
+                required
+                inputProps={{ maxLength: 6, style: { textTransform: 'uppercase', letterSpacing: 4 } }}
+                sx={FIELD_SX}
+              />
             </Box>
-
-            <TextField
-              label="Verification Code"
-              type="text"
-              fullWidth
-              value={captchaInput}
-              onChange={handleCaptchaChange}
-              required
-              variant="outlined"
-              placeholder="Enter the code above"
-              helperText="Enter the 6-character code shown above"
-              InputProps={{
-                startAdornment: <Security sx={{ color: '#FFD700', mr: 1 }} />
-              }}
-              sx={{ 
-                mb: 3,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 3,
-                  fontSize: 16,
-                  boxShadow: '0 2px 8px #FFD70022',
-                  '& fieldset': { borderColor: '#FFD700' },
-                  '&:hover fieldset': { borderColor: '#fff' },
-                  '&:focus fieldset': { borderColor: '#FFD700', boxShadow: '0 0 0 2px #FFD70044' }
-                },
-                '& .MuiInputLabel-root': { color: '#ccc' },
-                '& .MuiInputBase-input': { color: '#fff', textTransform: 'uppercase' },
-                '& .MuiFormHelperText-root': { color: '#888', fontSize: 12 }
-              }}
-            />
 
             <Button
               type="submit"
               fullWidth
-              variant="contained"
               disabled={loading}
-              sx={{ 
-                mt: 2,
-                borderRadius: 3,
-                fontWeight: 900,
-                fontSize: 20,
-                py: 1.5,
-                boxShadow: '0 4px 16px #FFD70044',
-                bgcolor: 'linear-gradient(90deg, #FFD700 60%, #fff 100%)',
-                color: '#111',
-                '&:hover': {
-                  bgcolor: 'linear-gradient(90deg, #fff 60%, #FFD700 100%)',
-                  color: '#111',
-                  boxShadow: '0 8px 32px #FFD70066'
-                }
+              sx={{
+                bgcolor: '#FFD700', color: '#000', fontWeight: 800,
+                fontSize: 15, py: 1.5, borderRadius: 2, letterSpacing: 0.5,
+                fontFamily: 'Montserrat, sans-serif',
+                '&:hover': { bgcolor: '#E6C200' },
+                '&:disabled': { bgcolor: '#333', color: '#666' },
               }}
             >
-              {loading ? 'SIGNING IN...' : 'SIGN IN'}
+              {loading ? <CircularProgress size={22} sx={{ color: '#000' }} /> : 'SIGN IN'}
             </Button>
-
-            <Box sx={{ textAlign: 'center', mt: 3 }}>
-              <Button
-                variant="text"
-                size="small"
-                onClick={() => navigate('/signup')}
-                sx={{ 
-                  fontWeight: 700,
-                  color: '#FFD700',
-                  textTransform: 'none',
-                  fontSize: 14,
-                  '&:hover': {
-                    color: '#fff',
-                    bgcolor: 'rgba(255,215,0,0.1)'
-                  }
-                }}
-              >
-                Don't have an account? Create one
-              </Button>
-            </Box>
           </form>
+
+          <Box sx={{ textAlign: 'center', mt: 3 }}>
+            <Typography sx={{ color: '#888', fontSize: 13 }}>
+              Don't have an account?{' '}
+              <Box
+                component="span"
+                onClick={() => navigate('/signup')}
+                sx={{ color: '#FFD700', fontWeight: 700, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+              >
+                Sign Up
+              </Box>
+            </Typography>
+          </Box>
         </Paper>
       </Container>
     </Box>
   );
-};
-
-export default Login;
+}

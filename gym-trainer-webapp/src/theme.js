@@ -1,31 +1,39 @@
-// Premium theme for Gym Trainer Web App
-// RESET-inspired premium theme palettes
-export const lightTheme = {
-  background: '#FFFFFF',
-  card: '#F5F5F5',
-  text: '#000000',
-  muted: '#2C2C2C',
-  accent: '#C0C0C0', // Silver
-  buttonBg: '#C0C0C0',
-  buttonText: '#000000',
-  border: '#E0E0E0',
+// ── XERXES Design System 2025 ──────────────────────────────────────────────
+export const tokens = {
+  // Grays
+  black:     '#000000',
+  gray950:   '#0A0A0B',
+  gray900:   '#111113',
+  gray800:   '#1C1C1F',
+  gray700:   '#26262B',
+  gray600:   '#333339',
+  gray500:   '#515159',
+  gray400:   '#7C7C87',
+  gray300:   '#AFAFB8',
+  gray200:   '#D4D4DC',
+  gray100:   '#EBEBF0',
+  white:     '#FFFFFF',
+  // Brand
+  gold:      '#D4A843',
+  goldLight: '#F0C060',
+  goldMuted: '#8A6B28',
+  // Semantic
+  success:   '#22C55E',
+  error:     '#EF4444',
+  warning:   '#F59E0B',
 };
 
-export const darkTheme = {
-  background: '#000000',
-  card: '#181818',
-  text: '#FFFFFF',
-  muted: '#B0B3B8',
-  accent: '#C0C0C0', // Silver
-  buttonBg: '#C0C0C0',
-  buttonText: '#000000',
-  border: '#232323',
+// For legacy compatibility
+export const colors = {
+  primary:    tokens.gold,
+  background: tokens.gray950,
+  card:       tokens.gray900,
+  text:       tokens.white,
+  muted:      tokens.gray300,
+  border:     tokens.gray700,
 };
-
-// Default export for compatibility (light mode)
-export const colors = darkTheme;
 
 export const font = {
-  heading: 'Montserrat, Work Sans, Arial, sans-serif',
-  body: 'Roboto, Inter, Arial, sans-serif',
+  display: '"Syne", "Inter", sans-serif',
+  body:    '"Inter", -apple-system, BlinkMacSystemFont, sans-serif',
 };
